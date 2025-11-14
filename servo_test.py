@@ -1,32 +1,37 @@
 import time
-import pigpio
+import lgpio
 
-SERVO_PIN = 17  # signal pin only
+chip = lgpio.gpiochip_open(0)
 
-pi = pigpio.pi()
-if not pi.connected:
-    print("pigpio daemon not running")
-    exit()
+SERVO = 18  # GPIO pin for signal
+lgpio.gpio_claim_output(chip, SERVO)
 
-def angle_to_pulse(angle):
-    # 0–180° → 500–2500 μs pulse
-    return int(500 + (angle / 180.0) * 2000)
+def set_pulse(angle):
+    # convert angle to 1–2 ms pulse width
+    pulse = 1000 + (angle / 180.0) * 1000  # microseconds
+    lgpio.gpio_wave_clear(chip)
+
+    # Create a single PWM pulse using waves
+    waves = [
+        (SERVO, 1, pulse),
+        (SERVO, 0, 20000 - pulse)  # 20 ms period
+    ]
+
+    lgpio.gpio_wave_add_generic(chip, waves)
+    wid = lgpio.gpio_wave_create(chip)
+    lgpio.gpio_wave_send_repeat(chip, wid)
 
 try:
     while True:
-        # Sweep 0 → 180
-        for angle in range(0, 181, 5):
-            pi.set_servo_pulsewidth(SERVO_PIN, angle_to_pulse(angle))
+        for a in range(0, 181, 5):
+            set_pulse(a)
             time.sleep(0.02)
 
-        # Sweep 180 → 0
-        for angle in range(180, -1, -5):
-            pi.set_servo_pulsewidth(SERVO_PIN, angle_to_pulse(angle))
+        for a in range(180, -1, -5):
+            set_pulse(a)
             time.sleep(0.02)
 
 except KeyboardInterrupt:
     pass
 
-# stop servo output
-pi.set_servo_pulsewidth(SERVO_PIN, 0)
-pi.stop()
+lgpio.gpiochip_close(chip)
