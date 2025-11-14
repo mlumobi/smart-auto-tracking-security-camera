@@ -3,7 +3,7 @@ import lgpio
 
 chip = lgpio.gpiochip_open(0)
 
-SERVO = 18  # GPIO pin for signal
+SERVO = 17  # GPIO pin for signal
 lgpio.gpio_claim_output(chip, SERVO)
 
 def set_pulse(angle):
