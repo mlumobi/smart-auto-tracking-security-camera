@@ -5,15 +5,21 @@ import time
 def main():
     picam2 = Picamera2()
 
-    # Configure video stream (1280x720 @ ~30 FPS)
     config = picam2.create_video_configuration(
         main={"size": (1280, 720)},
-        controls={"FrameDurationLimits": (33333, 33333)}  # ~30 FPS
+        controls={"FrameDurationLimits": (33333, 33333)}
     )
 
     picam2.configure(config)
+
+    # Fix blue tint
+    picam2.set_controls({
+        "AwbMode": "auto",
+        "AwbEnable": True
+    })
+
     picam2.start()
-    time.sleep(0.1)  # Small delay to let camera stabilize
+    time.sleep(0.2)
 
     while True:
         frame = picam2.capture_array()
