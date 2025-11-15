@@ -1,13 +1,13 @@
 import cv2
 from ultralytics import YOLO
 
-# Initialize the YOLO model (YOLOv8n for lightweight; you can use v8s/v8m for higher accuracy)
-model = YOLO("yolov8n.pt")  # Make sure yolov8n.pt is downloaded
+# Initialize YOLOv8 model (nano for RPi 5)
+model = YOLO("yolov8n.pt")  # Download yolov8n.pt if not present
 
-# Open the IMX708 camera
-cap = cv2.VideoCapture(0)  # cam0
+# Open IMX708 camera (video0)
+cap = cv2.VideoCapture("/dev/video0")
 
-# Set camera resolution (adjust as per IMX708 capability)
+# Set camera resolution
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -21,28 +21,34 @@ while True:
         print("Failed to grab frame")
         break
 
-    # Run YOLO detection
-    results = model.predict(frame, conf=0.3, verbose=False)  # adjust confidence threshold
+    # YOLOv8 detection
+    results = model.predict(frame, conf=0.3, verbose=False)
 
-    # Draw boxes and coordinates
     for result in results:
         boxes = result.boxes.xyxy  # x1, y1, x2, y2
         scores = result.boxes.conf
         class_ids = result.boxes.cls
+
         for i, box in enumerate(boxes):
             x1, y1, x2, y2 = map(int, box)
             conf = float(scores[i])
             cls_id = int(class_ids[i])
             label = f"{model.names[cls_id]} {conf:.2f}"
 
-            # Draw bounding box
+            # Calculate center coordinates
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+
+            # Draw rectangle
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            # Show coordinates
-            cv2.putText(frame, f"{label} ({x1},{y1})", (x1, y1-10),
+            # Draw center point
+            cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
+            # Display label with center coordinates
+            cv2.putText(frame, f"{label} ({cx},{cy})", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
     # Show frame
-    cv2.imshow("YOLO Object Detection", frame)
+    cv2.imshow("YOLOv8 Object Detection", frame)
 
     # Press 'q' to quit
     if cv2.waitKey(1) & 0xFF == ord('q'):
