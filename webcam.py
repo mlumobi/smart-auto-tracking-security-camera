@@ -1,6 +1,5 @@
 from picamera2 import Picamera2
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import io
 import threading
 import time
 
@@ -9,16 +8,18 @@ picam2.configure(picam2.create_video_configuration(main={"size": (1280, 720)}))
 picam2.start()
 
 frame_lock = threading.Lock()
-frame = None
+current_frame = None
 
+# Capture frames continuously
 def capture_frames():
-    global frame
+    global current_frame
     while True:
+        frame = picam2.capture_buffer("main")
         with frame_lock:
-            frame = picam2.capture_buffer("main")
+            current_frame = frame
         time.sleep(0.01)
 
-class StreamHandler(BaseHTTPRequestHandler):
+class MJPEGHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path != "/":
             self.send_error(404)
@@ -28,24 +29,34 @@ class StreamHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
         self.end_headers()
 
-        while True:
-            with frame_lock:
-                output = frame
+        try:
+            while True:
+                with frame_lock:
+                    frame = current_frame
 
-            if output is None:
-                continue
+                if frame is None:
+                    continue
 
-            self.wfile.write(b"--FRAME\r\n")
-            self.send_header("Content-Type", "image/jpeg")
-            self.send_header("Content-Length", len(output))
-            self.end_headers()
-            self.wfile.write(output)
-            self.wfile.write(b"\r\n")
+                self.wfile.write(b"--FRAME\r\n")
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", len(frame))
+                self.end_headers()
+                self.wfile.write(frame)
+                self.wfile.write(b"\r\n")
+
+        except (BrokenPipeError, ConnectionResetError):
+            print("Client disconnected")
+            return
+
+    def log_message(self, format, *args):
+        return  # Disable logging
 
 # Start capture thread
 threading.Thread(target=capture_frames, daemon=True).start()
 
-# Start HTTP server
-server = HTTPServer(("0.0.0.0", 8000), StreamHandler)
-print("Streaming at http://<your_pi_ip>:8000")
+# Start server
+server = HTTPServer(("0.0.0.0", 8000), MJPEGHandler)
+print("MJPEG Stream ready at: http://<your_pi_ip>:8000")
+print("View on Pi: http://localhost:8000")
+
 server.serve_forever()
