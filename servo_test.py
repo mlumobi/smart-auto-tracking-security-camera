@@ -1,37 +1,43 @@
+import RPi.GPIO as GPIO
 import time
-import lgpio
 
-chip = lgpio.gpiochip_open(0)
+# GPIO pin where the servo is connected
+servo_pin = 18
 
-SERVO = 17  # GPIO pin for signal
-lgpio.gpio_claim_output(chip, SERVO)
+# Set up GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(servo_pin, GPIO.OUT)
 
-def set_pulse(angle):
-    # convert angle to 1–2 ms pulse width
-    pulse = 1000 + (angle / 180.0) * 1000  # microseconds
-    lgpio.gpio_wave_clear(chip)
+# Set up PWM on the servo pin, 50Hz (standard for servos)
+pwm = GPIO.PWM(servo_pin, 50)
+pwm.start(0)
 
-    # Create a single PWM pulse using waves
-    waves = [
-        (SERVO, 1, pulse),
-        (SERVO, 0, 20000 - pulse)  # 20 ms period
-    ]
-
-    lgpio.gpio_wave_add_generic(chip, waves)
-    wid = lgpio.gpio_wave_create(chip)
-    lgpio.gpio_wave_send_repeat(chip, wid)
+def set_angle(angle):
+    # Convert angle (0-180) to duty cycle (2-12 for MG90S)
+    duty = 2 + (angle / 18)
+    GPIO.output(servo_pin, True)
+    pwm.ChangeDutyCycle(duty)
+    time.sleep(0.5)
+    GPIO.output(servo_pin, False)
+    pwm.ChangeDutyCycle(0)
 
 try:
     while True:
-        for a in range(0, 181, 5):
-            set_pulse(a)
-            time.sleep(0.02)
+        # Move servo to 0 degrees
+        set_angle(0)
+        time.sleep(1)
 
-        for a in range(180, -1, -5):
-            set_pulse(a)
-            time.sleep(0.02)
+        # Move servo to 90 degrees
+        set_angle(90)
+        time.sleep(1)
+
+        # Move servo to 180 degrees
+        set_angle(180)
+        time.sleep(1)
 
 except KeyboardInterrupt:
-    pass
+    print("Exiting program")
 
-lgpio.gpiochip_close(chip)
+finally:
+    pwm.stop()
+    GPIO.cleanup()
