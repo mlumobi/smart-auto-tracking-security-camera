@@ -30,27 +30,28 @@ center_y = frame_height // 2
 # -----------------------------
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
-current_pan = 90
-current_tilt = 90
+current_pan = 90.0
+current_tilt = 90.0
 
 CAMERA_H_FOV = 120  # degrees horizontal FOV
 CAMERA_V_FOV = 90   # degrees vertical FOV
-MAX_STEP = 10       # increase max step for faster tracking
-DEAD_ZONE = 20      # pixels dead zone around center
+MAX_STEP = 5.0      # max degrees per frame
+DEAD_ZONE = 25      # pixels dead zone around center
+SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 
 # -----------------------------
 # PI Control Parameters
 # -----------------------------
-Kp = 0.8   # increased proportional gain
-Ki = 0.08  # increased integral gain
-pan_integral = 0
-tilt_integral = 0
+Kp = 0.5
+Ki = 0.05
+pan_integral = 0.0
+tilt_integral = 0.0
 
 # -----------------------------
 # Load YOLO
 # -----------------------------
 model = YOLO("yolov8n_ncnn_model")
-TARGET_CLASS = 67  # cell phone
+TARGET_CLASS = 15  # cell phone
 
 while True:
     frame = picam2.capture_array()
@@ -78,29 +79,33 @@ while True:
         error_x_pixels = best_x - center_x
         error_y_pixels = best_y - center_y
 
-        # Pan (with dead zone)
+        # Calculate PI step with dead zone
+        pan_step = 0.0
+        tilt_step = 0.0
+
         if abs(error_x_pixels) > DEAD_ZONE:
             pan_integral += error_x_pixels
             pan_step = - (Kp * error_x_pixels + Ki * pan_integral) / (frame_width / 2) * (CAMERA_H_FOV / 2)
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
-            current_pan += pan_step
         else:
-            pan_integral = 0  # reset integral inside dead zone
+            pan_integral = 0.0
 
-        # Tilt (with dead zone)
         if abs(error_y_pixels) > DEAD_ZONE:
             tilt_integral += error_y_pixels
             tilt_step = (Kp * error_y_pixels + Ki * tilt_integral) / (frame_height / 2) * (CAMERA_V_FOV / 2)
             tilt_step = max(min(tilt_step, MAX_STEP), -MAX_STEP)
-            current_tilt += tilt_step
         else:
-            tilt_integral = 0  # reset integral inside dead zone
+            tilt_integral = 0.0
+
+        # Apply smoothing (blend with previous angle)
+        current_pan = current_pan * (1 - SMOOTHING) + (current_pan + pan_step) * SMOOTHING
+        current_tilt = current_tilt * (1 - SMOOTHING) + (current_tilt + tilt_step) * SMOOTHING
 
         # Clamp angles
         current_pan = max(min(current_pan, PAN_MAX), PAN_MIN)
         current_tilt = max(min(current_tilt, TILT_MAX), TILT_MIN)
 
-        # Send servo angles via UART
+        # Send angles via UART
         ser.write(f"pan={int(current_pan)}\n".encode())
         ser.write(f"tilt={int(current_tilt)}\n".encode())
 
@@ -108,9 +113,9 @@ while True:
         cv2.circle(annotated_frame, (best_x, best_y), 10, (0, 0, 255), -1)
 
         # Display current servo angles
-        cv2.putText(annotated_frame, f'Pan: {int(current_pan)}', (10, 60),
+        cv2.putText(annotated_frame, f'Pan: {current_pan:.1f}', (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, cv2.LINE_AA)
-        cv2.putText(annotated_frame, f'Tilt: {int(current_tilt)}', (10, 90),
+        cv2.putText(annotated_frame, f'Tilt: {current_tilt:.1f}', (10, 90),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, cv2.LINE_AA)
 
     # Display FPS
