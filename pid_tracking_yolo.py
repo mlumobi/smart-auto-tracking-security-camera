@@ -63,7 +63,7 @@ TARGET_CLASS = 67  # cell phone (COCO dataset)
 
 # Frame skipping for performance
 frame_count = 0
-SKIP_FRAMES = 5
+SKIP_FRAMES = 1
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0
