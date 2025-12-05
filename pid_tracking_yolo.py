@@ -40,12 +40,15 @@ DEAD_ZONE = 25      # pixels dead zone around center
 SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 
 # -----------------------------
-# PI Control Parameters
+# PID Control Parameters
 # -----------------------------
 Kp = 0.5
 Ki = 0.05
+Kd = 0.1
 pan_integral = 0.0
 tilt_integral = 0.0
+pan_last_error = 0.0
+tilt_last_error = 0.0
 
 # -----------------------------
 # Load YOLO
@@ -85,17 +88,23 @@ while True:
 
         if abs(error_x_pixels) > DEAD_ZONE:
             pan_integral += error_x_pixels
-            pan_step = - (Kp * error_x_pixels + Ki * pan_integral) / (frame_width / 2) * (CAMERA_H_FOV / 2)
+            pan_derivative = error_x_pixels - pan_last_error
+            pan_step = - (Kp * error_x_pixels + Ki * pan_integral + Kd * pan_derivative) / (frame_width / 2) * (CAMERA_H_FOV / 2)
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
+            pan_last_error = error_x_pixels
         else:
             pan_integral = 0.0
+            pan_last_error = 0.0
 
         if abs(error_y_pixels) > DEAD_ZONE:
             tilt_integral += error_y_pixels
-            tilt_step = (Kp * error_y_pixels + Ki * tilt_integral) / (frame_height / 2) * (CAMERA_V_FOV / 2)
+            tilt_derivative = error_y_pixels - tilt_last_error
+            tilt_step = (Kp * error_y_pixels + Ki * tilt_integral + Kd * tilt_derivative) / (frame_height / 2) * (CAMERA_V_FOV / 2)
             tilt_step = max(min(tilt_step, MAX_STEP), -MAX_STEP)
+            tilt_last_error = error_y_pixels
         else:
             tilt_integral = 0.0
+            tilt_last_error = 0.0
 
         # Apply smoothing (blend with previous angle)
         current_pan = current_pan * (1 - SMOOTHING) + (current_pan + pan_step) * SMOOTHING
