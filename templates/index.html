@@ -27,13 +27,46 @@
             flex-direction: column;
         }
         
-        h1 {
-            text-align: center;
-            margin: 5px 0;
-            font-size: 1.3em;
-            color: #00ff00;
-            padding: 5px;
+        .header {
             background: #1a1a1a;
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #00ff00;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 1.2em;
+            color: #00ff00;
+        }
+        
+        .target-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .target-selector label {
+            font-size: 0.9em;
+            color: #888;
+        }
+        
+        #class-select {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+        
+        #class-select:focus {
+            outline: none;
+            border-color: #00ff00;
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
         }
         
         .video-container {
@@ -119,7 +152,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>Smart Tracking Camera</h1>
+        <div class="header">
+            <h1>Smart Tracking Camera</h1>
+            <div class="target-selector">
+                <label for="class-select">Target:</label>
+                <select id="class-select">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+        </div>
         
         <div class="video-container">
             <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Video Stream">
@@ -154,6 +195,49 @@
     </div>
 
     <script>
+        let currentTargetClass = null;
+        
+        // Load COCO classes into dropdown
+        function loadClasses() {
+            fetch('/classes')
+                .then(response => response.json())
+                .then(classes => {
+                    const select = document.getElementById('class-select');
+                    select.innerHTML = '';
+                    
+                    // Sort classes by name
+                    const sortedClasses = Object.entries(classes).sort((a, b) => 
+                        a[1].localeCompare(b[1])
+                    );
+                    
+                    sortedClasses.forEach(([id, name]) => {
+                        const option = document.createElement('option');
+                        option.value = id;
+                        option.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+                        select.appendChild(option);
+                    });
+                    
+                    // Set current target
+                    if (currentTargetClass !== null) {
+                        select.value = currentTargetClass;
+                    }
+                })
+                .catch(error => console.error('Error loading classes:', error));
+        }
+        
+        // Handle target class change
+        document.getElementById('class-select').addEventListener('change', function() {
+            const classId = parseInt(this.value);
+            fetch(`/set_target/${classId}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Target changed to:', data.class_name);
+                    }
+                })
+                .catch(error => console.error('Error setting target:', error));
+        });
+        
         function updateStatus() {
             fetch('/status')
                 .then(response => response.json())
@@ -174,10 +258,18 @@
                     document.getElementById('pan-value').textContent = data.pan + '°';
                     document.getElementById('tilt-value').textContent = data.tilt + '°';
                     document.getElementById('fps-value').textContent = data.fps;
+                    
+                    // Update dropdown if target class changed from backend
+                    if (data.target_class !== currentTargetClass) {
+                        currentTargetClass = data.target_class;
+                        document.getElementById('class-select').value = currentTargetClass;
+                    }
                 })
                 .catch(error => console.error('Error fetching status:', error));
         }
         
+        // Initialize
+        loadClasses();
         setInterval(updateStatus, 500);
         updateStatus();
     </script>

@@ -64,6 +64,26 @@ tilt_last_error = 0.0
 model = YOLO("yolov8n_ncnn_model")
 TARGET_CLASS = 67
 
+# COCO class names
+COCO_CLASSES = {
+    0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 4: "airplane",
+    5: "bus", 6: "train", 7: "truck", 8: "boat", 9: "traffic light",
+    10: "fire hydrant", 11: "stop sign", 12: "parking meter", 13: "bench", 14: "bird",
+    15: "cat", 16: "dog", 17: "horse", 18: "sheep", 19: "cow",
+    20: "elephant", 21: "bear", 22: "zebra", 23: "giraffe", 24: "backpack",
+    25: "umbrella", 26: "handbag", 27: "tie", 28: "suitcase", 29: "frisbee",
+    30: "skis", 31: "snowboard", 32: "sports ball", 33: "kite", 34: "baseball bat",
+    35: "baseball glove", 36: "skateboard", 37: "surfboard", 38: "tennis racket", 39: "bottle",
+    40: "wine glass", 41: "cup", 42: "fork", 43: "knife", 44: "spoon",
+    45: "bowl", 46: "banana", 47: "apple", 48: "sandwich", 49: "orange",
+    50: "broccoli", 51: "carrot", 52: "hot dog", 53: "pizza", 54: "donut",
+    55: "cake", 56: "chair", 57: "couch", 58: "potted plant", 59: "bed",
+    60: "dining table", 61: "toilet", 62: "tv", 63: "laptop", 64: "mouse",
+    65: "remote", 66: "keyboard", 67: "cell phone", 68: "microwave", 69: "oven",
+    70: "toaster", 71: "sink", 72: "refrigerator", 73: "book", 74: "clock",
+    75: "vase", 76: "scissors", 77: "teddy bear", 78: "hair drier", 79: "toothbrush"
+}
+
 # Frame skipping
 frame_count = 0
 SKIP_FRAMES = 1
@@ -200,8 +220,22 @@ def status():
             'target_detected': target_detected,
             'pan': round(current_pan, 1),
             'tilt': round(current_tilt, 1),
-            'fps': round(fps_value, 1)
+            'fps': round(fps_value, 1),
+            'target_class': TARGET_CLASS,
+            'target_name': COCO_CLASSES.get(TARGET_CLASS, "Unknown")
         })
+
+@app.route('/classes')
+def get_classes():
+    return jsonify(COCO_CLASSES)
+
+@app.route('/set_target/<int:class_id>', methods=['POST'])
+def set_target(class_id):
+    global TARGET_CLASS
+    if class_id in COCO_CLASSES:
+        TARGET_CLASS = class_id
+        return jsonify({'success': True, 'class_id': class_id, 'class_name': COCO_CLASSES[class_id]})
+    return jsonify({'success': False, 'error': 'Invalid class ID'}), 400
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True)
