@@ -59,38 +59,83 @@ tilt_last_error = 0.0
 # Load YOLO
 # -----------------------------
 model = YOLO("yolov8n_ncnn_model")
-TARGET_CLASS = 15  # cell phone
+TARGET_CLASS = 67  # cell phone (COCO dataset)
+
+# Frame skipping for performance
+frame_count = 0
+SKIP_FRAMES = 5
+last_results = None
+last_target_found = False
+last_best_x, last_best_y = 0, 0
 
 while True:
     frame = picam2.capture_array()
-    results = model(frame)
-    annotated_frame = results[0].plot()
+    
+    # Check if this frame should be processed
+    is_processing = frame_count % SKIP_FRAMES == 0
+    
+    # Process YOLO only every SKIP_FRAMES frames
+    if is_processing:
+        results = model(frame)
+        last_results = results
+    else:
+        results = last_results
+    
+    frame_count += 1
+    
+    if results is not None:
+        annotated_frame = results[0].plot()
+    else:
+        annotated_frame = frame.copy()
 
     target_found = False
     closest_distance = float('inf')
 
     # Find closest phone to center
-    for box, cls in zip(results[0].boxes.xyxy, results[0].boxes.cls):
-        if int(cls) == TARGET_CLASS:
-            x1, y1, x2, y2 = box
-            obj_x = int((x1 + x2) / 2)
-            obj_y = int((y1 + y2) / 2)
+    if results is not None and results[0].boxes is not None and len(results[0].boxes) > 0:
+        for box, cls in zip(results[0].boxes.xyxy, results[0].boxes.cls):
+            if int(cls) == TARGET_CLASS:
+                x1, y1, x2, y2 = box
+                obj_x = int((x1 + x2) / 2)
+                obj_y = int((y1 + y2) / 2)
 
-            distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
-            if distance < closest_distance:
-                closest_distance = distance
-                best_x, best_y = obj_x, obj_y
-                target_found = True
+                distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
+                if distance < closest_distance:
+                    closest_distance = distance
+                    best_x, best_y = obj_x, obj_y
+                    target_found = True
+        
+        # Update last known position only when processing new frame
+        if is_processing:
+            if target_found:
+                last_target_found = True
+                last_best_x, last_best_y = best_x, best_y
+            else:
+                last_target_found = False
+    
+    # Use last known position if target was found before (for skipped frames)
+    if not target_found and last_target_found and not is_processing:
+        target_found = True
+        best_x, best_y = last_best_x, last_best_y
 
     # Debug info
-    num_detections = len(results[0].boxes) if results[0].boxes is not None else 0
-    cv2.putText(annotated_frame, f'Detections: {num_detections}', (10, 120),
+    num_detections = len(results[0].boxes) if (results is not None and results[0].boxes is not None) else 0
+    # Show if frame was skipped
+    skip_text = "PROCESSING" if is_processing else "SKIPPED"
+    skip_color = (0, 255, 0) if is_processing else (128, 128, 128)
+    cv2.putText(annotated_frame, f'{skip_text}', (10, 120),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, skip_color, 2, cv2.LINE_AA)
+    
+    cv2.putText(annotated_frame, f'Detections: {num_detections}', (10, 150),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
     
-    if num_detections > 0:
+    if num_detections > 0 and results is not None:
         detected_classes = [int(c) for c in results[0].boxes.cls]
-        cv2.putText(annotated_frame, f'Classes: {detected_classes}', (10, 150),
+        cv2.putText(annotated_frame, f'Classes: {detected_classes}', (10, 180),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+    
+    cv2.putText(annotated_frame, f'Target Found: {target_found}', (10, 210),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
     if target_found:
         error_x_pixels = best_x - center_x
@@ -161,12 +206,12 @@ while True:
         cv2.putText(annotated_frame, f'Tilt: {current_tilt:.1f}', (10, 90),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, cv2.LINE_AA)
 
-    # FPS
-    inference_time = results[0].speed['inference']
-    fps = 1000 / inference_time
-
-    cv2.putText(annotated_frame, f'FPS: {fps:.1f}', (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    # FPS (only update when processing)
+    if results is not None and is_processing:
+        inference_time = results[0].speed['inference']
+        fps = 1000 / inference_time
+        cv2.putText(annotated_frame, f'FPS: {fps:.1f}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     cv2.imshow("Camera", annotated_frame)
     if cv2.waitKey(1) == ord("q"):
