@@ -14,14 +14,15 @@ time.sleep(2)
 # Camera Setup
 # -----------------------------
 picam2 = Picamera2()
-picam2.preview_configuration.main.size = (1280, 720)  # 720p
-picam2.preview_configuration.main.format = "RGB888"
-picam2.preview_configuration.align()
-picam2.configure("preview")
+camera_config = picam2.create_preview_configuration(
+    main={"size": (2304, 1296), "format": "RGB888"},
+    controls={"FrameRate": 30}
+)
+picam2.configure(camera_config)
 picam2.start()
 
-frame_width = 1280
-frame_height = 720
+frame_width = 2304
+frame_height = 1296
 center_x = frame_width // 2
 center_y = frame_height // 2
 
