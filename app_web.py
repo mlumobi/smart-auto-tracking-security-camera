@@ -28,15 +28,15 @@ except:
 # Camera Setup
 picam2 = Picamera2()
 camera_config = picam2.create_preview_configuration(
-    main={"size": (2304, 1296), "format": "RGB888"},
-    controls={"FrameRate": 30}
+    main={"size": (4608, 2592), "format": "RGB888"},
+    controls={"FrameRate": 15}
 )
 picam2.configure(camera_config)
 picam2.start()
 time.sleep(2)
 
-frame_width = 2304
-frame_height = 1296
+frame_width = 4608
+frame_height = 2592
 center_x = frame_width // 2
 center_y = frame_height // 2
 
@@ -86,9 +86,9 @@ COCO_CLASSES = {
     75: "vase", 76: "scissors", 77: "teddy bear", 78: "hair drier", 79: "toothbrush"
 }
 
-# Frame skipping
+# Frame skipping (increased for full resolution performance)
 frame_count = 0
-SKIP_FRAMES = 1
+SKIP_FRAMES = 3
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0

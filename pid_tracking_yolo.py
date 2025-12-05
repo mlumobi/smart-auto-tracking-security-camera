@@ -15,14 +15,14 @@ time.sleep(2)
 # -----------------------------
 picam2 = Picamera2()
 camera_config = picam2.create_preview_configuration(
-    main={"size": (2304, 1296), "format": "RGB888"},
-    controls={"FrameRate": 30}
+    main={"size": (4608, 2592), "format": "RGB888"},
+    controls={"FrameRate": 15}
 )
 picam2.configure(camera_config)
 picam2.start()
 
-frame_width = 2304
-frame_height = 1296
+frame_width = 4608
+frame_height = 2592
 center_x = frame_width // 2
 center_y = frame_height // 2
 
@@ -62,9 +62,9 @@ tilt_last_error = 0.0
 model = YOLO("yolov8n_ncnn_model")
 TARGET_CLASS = 67  # cell phone (COCO dataset)
 
-# Frame skipping for performance
+# Frame skipping for performance (increased for full resolution)
 frame_count = 0
-SKIP_FRAMES = 1
+SKIP_FRAMES = 3
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0
