@@ -26,15 +26,15 @@ except:
 
 # Camera Setup
 picam2 = Picamera2()
-picam2.preview_configuration.main.size = (640, 480)
+picam2.preview_configuration.main.size = (1280, 720)
 picam2.preview_configuration.main.format = "RGB888"
 picam2.preview_configuration.align()
 picam2.configure("preview")
 picam2.start()
 time.sleep(2)
 
-frame_width = 640
-frame_height = 480
+frame_width = 1280
+frame_height = 720
 center_x = frame_width // 2
 center_y = frame_height // 2
 
@@ -66,7 +66,7 @@ TARGET_CLASS = 67
 
 # Frame skipping
 frame_count = 0
-SKIP_FRAMES = 3
+SKIP_FRAMES = 1
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0
