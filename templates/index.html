@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Tracking Camera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            color: #00ff00;
+        }
+        
+        .video-container {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 255, 0, 0.2);
+        }
+        
+        #video-stream {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .status-panel {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .status-item {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .status-label {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .detected {
+            color: #00ff00;
+        }
+        
+        .not-detected {
+            color: #ff0000;
+        }
+        
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .indicator.active {
+            background: #00ff00;
+        }
+        
+        .indicator.inactive {
+            background: #ff0000;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.5em;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Smart Tracking Camera</h1>
+        
+        <div class="video-container">
+            <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Video Stream">
+        </div>
+        
+        <div class="status-panel">
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-label">Target Status</div>
+                    <div class="status-value" id="target-status">
+                        <span class="indicator inactive"></span>
+                        <span id="target-text">Searching...</span>
+                    </div>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">Pan Angle</div>
+                    <div class="status-value" id="pan-value">90.0°</div>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">Tilt Angle</div>
+                    <div class="status-value" id="tilt-value">90.0°</div>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-label">FPS</div>
+                    <div class="status-value" id="fps-value">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const indicator = document.querySelector('.indicator');
+                    const targetText = document.getElementById('target-text');
+                    
+                    if (data.target_detected) {
+                        indicator.className = 'indicator active';
+                        targetText.textContent = 'Detected';
+                        targetText.className = 'detected';
+                    } else {
+                        indicator.className = 'indicator inactive';
+                        targetText.textContent = 'Searching...';
+                        targetText.className = 'not-detected';
+                    }
+                    
+                    document.getElementById('pan-value').textContent = data.pan + '°';
+                    document.getElementById('tilt-value').textContent = data.tilt + '°';
+                    document.getElementById('fps-value').textContent = data.fps;
+                })
+                .catch(error => console.error('Error fetching status:', error));
+        }
+        
+        setInterval(updateStatus, 500);
+        updateStatus();
+    </script>
+</body>
+</html>
