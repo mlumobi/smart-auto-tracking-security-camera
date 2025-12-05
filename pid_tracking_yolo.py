@@ -82,6 +82,16 @@ while True:
                 best_x, best_y = obj_x, obj_y
                 target_found = True
 
+    # Debug info
+    num_detections = len(results[0].boxes) if results[0].boxes is not None else 0
+    cv2.putText(annotated_frame, f'Detections: {num_detections}', (10, 120),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+    
+    if num_detections > 0:
+        detected_classes = [int(c) for c in results[0].boxes.cls]
+        cv2.putText(annotated_frame, f'Classes: {detected_classes}', (10, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+
     if target_found:
         error_x_pixels = best_x - center_x
         error_y_pixels = best_y - center_y
@@ -98,7 +108,7 @@ while True:
             pan_integral = 0.0
             pan_last_error = 0.0
 
-        elif abs(error_x_pixels) > OUTER_TRIGGER_ZONE:
+        elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE:
             # PID correction only outside trigger zone
             pan_integral += error_x_pixels
             pan_derivative = error_x_pixels - pan_last_error
@@ -118,7 +128,7 @@ while True:
             tilt_integral = 0.0
             tilt_last_error = 0.0
 
-        elif abs(error_y_pixels) > OUTER_TRIGGER_ZONE:
+        elif abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
             tilt_integral += error_y_pixels
             tilt_derivative = error_y_pixels - tilt_last_error
 
