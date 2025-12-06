@@ -12,7 +12,7 @@ app = Flask(__name__)
 # Global variables
 target_detected = False
 current_pan = 90.0
-current_tilt = 90.0
+current_tilt = 50.0
 fps_value = 0.0
 lock = threading.Lock()
 
@@ -21,9 +21,9 @@ try:
     ser = serial.Serial('/dev/serial0', 115200, timeout=1)
     time.sleep(2)
     uart_enabled = True
-    # set servo to 90 90
+    # set servo to 90 50
     ser.write("pan=90\n".encode())
-    ser.write("tilt=90\n".encode())
+    ser.write("tilt=50\n".encode())
     time.sleep(1)
     print(f"camera initialized")
 except:
@@ -65,15 +65,15 @@ OUTER_TRIGGER_ZONE = 60
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot
 Ki = 0.0    # Keep disabled
-Kd = 0.02   # Damping to prevent overshoot
+Kd = 0.03   # Damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
 tilt_last_error = 0.0
 
 # Load YOLO
-model = YOLO("yolov8n.pt")
-TARGET_CLASS = 67
+model = YOLO("yolov8n_ncnn_model")
+TARGET_CLASS = 67 # default target class is cell phone
 
 # COCO class names
 COCO_CLASSES = {
