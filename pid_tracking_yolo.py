@@ -192,7 +192,7 @@ while True:
         # Dynamic dead zone based on object size
         # LARGER objects (closer) = LARGER dead zone (more tolerance)
         object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
-        size_factor = 1.0 + object_size_ratio * 3.0
+        size_factor = 0.5 + object_size_ratio * 1.5
         
         dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
         dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
@@ -312,7 +312,7 @@ while True:
     if target_found:
         # Use dynamic zones based on object size (larger object = larger dead zone)
         object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
-        size_factor = 1.0 + object_size_ratio * 3.0
+        size_factor = 0.5 + object_size_ratio * 1.5
         display_inner = int(INNER_DEAD_ZONE * size_factor)
         display_outer = int(OUTER_TRIGGER_ZONE * size_factor)
     else:
