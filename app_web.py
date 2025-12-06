@@ -57,12 +57,12 @@ scale_y = frame_height / detect_height
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-MAX_STEP = 15.0 # max degrees per frame
+MAX_STEP = 45.0 # max degrees per frame
 SMOOTHING = 0.6  # 0=no smoothing (instant jump), 1=full smoothing (slow)
 
 # Zone Settings
-INNER_DEAD_ZONE = 35  # Stable zone - no movement
-OUTER_TRIGGER_ZONE = 80  # Trigger zone - movement starts here
+INNER_DEAD_ZONE = 70  # Stable zone - no movement (increased from 35)
+OUTER_TRIGGER_ZONE = 150  # Trigger zone - movement starts here (increased from 80)
 
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot

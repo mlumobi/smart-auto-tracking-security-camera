@@ -51,8 +51,8 @@ SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 # -----------------------------
 # ZONE SETTINGS
 # -----------------------------
-INNER_DEAD_ZONE = 35     # Stable zone - no movement
-OUTER_TRIGGER_ZONE = 80  # Trigger zone - movement starts here
+INNER_DEAD_ZONE = 70     # Stable zone - no movement (increased from 35)
+OUTER_TRIGGER_ZONE = 150  # Trigger zone - movement starts here (increased from 80)
 
 # -----------------------------
 # PID Control Parameters (pixel-based control)
