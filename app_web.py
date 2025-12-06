@@ -47,8 +47,9 @@ center_x = frame_width // 2
 center_y = frame_height // 2
 
 # Detection resolution (downscaled for faster YOLO processing)
-detect_width = 640
-detect_height = 360
+# Lower = faster but less accurate. 320x180 is ~4x faster than 640x360
+detect_width = 416
+detect_height = 234
 scale_x = frame_width / detect_width
 scale_y = frame_height / detect_height
 
@@ -73,8 +74,10 @@ tilt_integral = 0.0
 pan_last_error = 0.0
 tilt_last_error = 0.0
 
-# Load YOLO
+# Load YOLO with optimized settings
 model = YOLO("yolov8n_ncnn_model")
+CONF_THRESHOLD = 0.4  # Minimum confidence to process (higher = faster)
+IOU_THRESHOLD = 0.5   # NMS IoU threshold
 TARGET_CLASS = 67 # default target class is cell phone
 
 # COCO class names
@@ -97,9 +100,10 @@ COCO_CLASSES = {
     75: "vase", 76: "scissors", 77: "teddy bear", 78: "hair drier", 79: "toothbrush"
 }
 
-# Frame skipping (increased for full resolution performance)
+# Frame skipping (skip detection on some frames for higher FPS)
+# SKIP_FRAMES=2 means detect every 2nd frame, doubles streaming FPS
 frame_count = 0
-SKIP_FRAMES = 1
+SKIP_FRAMES = 2
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0
@@ -115,8 +119,8 @@ def process_frame():
     
     if is_processing:
         # Downscale for faster YOLO detection
-        frame_small = cv2.resize(frame_full, (detect_width, detect_height))
-        results = model(frame_small)
+        frame_small = cv2.resize(frame_full, (detect_width, detect_height), interpolation=cv2.INTER_LINEAR)
+        results = model(frame_small, conf=CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
         last_results = results
     else:
         results = last_results
@@ -130,9 +134,10 @@ def process_frame():
     closest_distance = float('inf')
     
     if results is not None and results[0].boxes is not None and len(results[0].boxes) > 0:
-        for box, cls in zip(results[0].boxes.xyxy, results[0].boxes.cls):
+        for box, cls, conf in zip(results[0].boxes.xyxy, results[0].boxes.cls, results[0].boxes.conf):
             if int(cls) == TARGET_CLASS:
                 x1, y1, x2, y2 = box
+                confidence = float(conf)
                 # Scale coordinates back to full resolution
                 obj_x = int((x1 + x2) / 2 * scale_x)
                 obj_y = int((y1 + y2) / 2 * scale_y)
@@ -148,6 +153,11 @@ def process_frame():
                     box_x2 = int(x2 * scale_x)
                     box_y2 = int(y2 * scale_y)
                     cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
+                    
+                    # Draw confidence on top of the box
+                    conf_text = f"{confidence:.2f}"
+                    cv2.putText(annotated_frame, conf_text, (box_x1, box_y1 - 10),
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv2.LINE_AA)
         
         if is_processing:
             if target_found:
@@ -214,6 +224,29 @@ def process_frame():
     cv2.putText(annotated_frame, status_text, (10, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, status_color, 2, cv2.LINE_AA)
     
+    # Draw dead zones (inner and outer trigger zones)
+    # Inner dead zone (green rectangle) - no movement inside this zone
+    inner_x1 = center_x - INNER_DEAD_ZONE
+    inner_y1 = center_y - INNER_DEAD_ZONE
+    inner_x2 = center_x + INNER_DEAD_ZONE
+    inner_y2 = center_y + INNER_DEAD_ZONE
+    cv2.rectangle(annotated_frame, (inner_x1, inner_y1), (inner_x2, inner_y2), (0, 255, 0), 2)
+    cv2.putText(annotated_frame, "DEAD ZONE", (inner_x1, inner_y1 - 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+    
+    # Outer trigger zone (yellow rectangle) - movement triggers outside this zone
+    outer_x1 = center_x - OUTER_TRIGGER_ZONE
+    outer_y1 = center_y - OUTER_TRIGGER_ZONE
+    outer_x2 = center_x + OUTER_TRIGGER_ZONE
+    outer_y2 = center_y + OUTER_TRIGGER_ZONE
+    cv2.rectangle(annotated_frame, (outer_x1, outer_y1), (outer_x2, outer_y2), (0, 255, 255), 2)
+    cv2.putText(annotated_frame, "TRIGGER ZONE", (outer_x1, outer_y1 - 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+    
+    # Draw center crosshair
+    cv2.line(annotated_frame, (center_x - 20, center_y), (center_x + 20, center_y), (255, 255, 255), 1)
+    cv2.line(annotated_frame, (center_x, center_y - 20), (center_x, center_y + 20), (255, 255, 255), 1)
+    
     if results is not None and is_processing:
         inference_time = results[0].speed['inference']
         with lock:
@@ -222,9 +255,11 @@ def process_frame():
     return annotated_frame
 
 def generate_frames():
+    # JPEG encoding params: quality 70 (default 95) for faster encoding
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
     while True:
         frame = process_frame()
-        ret, buffer = cv2.imencode('.jpg', frame)
+        ret, buffer = cv2.imencode('.jpg', frame, encode_param)
         frame_bytes = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
