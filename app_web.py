@@ -56,7 +56,7 @@ scale_y = frame_height / detect_height
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-MAX_STEP = 15.0
+MAX_STEP = 15.0 # max degrees per frame
 SMOOTHING = 0.6
 
 # Zone Settings
@@ -65,8 +65,9 @@ OUTER_TRIGGER_ZONE = 60
 
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot
-Ki = 0.0    # Keep disabled
+Ki = 0.001  # Small integral gain to eliminate steady-state error
 Kd = 0.03   # Damping to prevent overshoot
+MAX_INTEGRAL = 500  # Anti-windup: clamp integral accumulation
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
@@ -176,6 +177,7 @@ def process_frame():
             pan_last_error = 0.0
         elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE:
             pan_integral += error_x_pixels
+            pan_integral = max(min(pan_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
             pan_derivative = error_x_pixels - pan_last_error
             pan_step = -(Kp * error_x_pixels + Ki * pan_integral + Kd * pan_derivative)
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
@@ -187,6 +189,7 @@ def process_frame():
             tilt_last_error = 0.0
         elif abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
             tilt_integral += error_y_pixels
+            tilt_integral = max(min(tilt_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
             tilt_derivative = error_y_pixels - tilt_last_error
             tilt_step = (Kp * error_y_pixels + Ki * tilt_integral + Kd * tilt_derivative)
             tilt_step = max(min(tilt_step, MAX_STEP), -MAX_STEP)
