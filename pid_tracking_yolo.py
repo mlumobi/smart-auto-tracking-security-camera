@@ -46,9 +46,9 @@ OUTER_TRIGGER_ZONE = 60  # Only move when phone exceeds this distance
 # -----------------------------
 # PID Control Parameters (pixel-based control)
 # -----------------------------
-Kp = 0.005  # Start conservative for 4608px width
-Ki = 0.0    # Keep disabled initially
-Kd = 0.001  # Small damping
+Kp = 0.02   # Faster response to pixel errors
+Ki = 0.0    # Keep disabled
+Kd = 0.005  # Damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
