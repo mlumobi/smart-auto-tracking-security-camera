@@ -15,14 +15,14 @@ time.sleep(2)
 # -----------------------------
 picam2 = Picamera2()
 camera_config = picam2.create_preview_configuration(
-    main={"size": (4608, 2592), "format": "RGB888"},
-    controls={"FrameRate": 15}
+    main={"size": (1920, 1080), "format": "RGB888"},
+    controls={"FrameRate": 30}
 )
 picam2.configure(camera_config)
 picam2.start()
 
-frame_width = 4608
-frame_height = 2592
+frame_width = 1920
+frame_height = 1080
 center_x = frame_width // 2
 center_y = frame_height // 2
 
@@ -116,7 +116,7 @@ while True:
                     box_y1 = int(y1 * scale_y)
                     box_x2 = int(x2 * scale_x)
                     box_y2 = int(y2 * scale_y)
-                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 8)
+                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
         
         # Update last known position only when processing new frame
         if is_processing:
@@ -131,24 +131,24 @@ while True:
         target_found = True
         best_x, best_y = last_best_x, last_best_y
 
-    # Debug info (scaled for high resolution)
+    # Debug info
     num_detections = len(results[0].boxes) if (results is not None and results[0].boxes is not None) else 0
     # Show if frame was skipped
     skip_text = "PROCESSING" if is_processing else "SKIPPED"
     skip_color = (0, 255, 0) if is_processing else (128, 128, 128)
-    cv2.putText(annotated_frame, f'{skip_text}', (30, 350),
-                cv2.FONT_HERSHEY_SIMPLEX, 2.5, skip_color, 5, cv2.LINE_AA)
+    cv2.putText(annotated_frame, f'{skip_text}', (10, 140),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, skip_color, 2, cv2.LINE_AA)
     
-    cv2.putText(annotated_frame, f'Detections: {num_detections}', (30, 450),
-                cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 0), 5, cv2.LINE_AA)
+    cv2.putText(annotated_frame, f'Detections: {num_detections}', (10, 180),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
     
     if num_detections > 0 and results is not None:
         detected_classes = [int(c) for c in results[0].boxes.cls]
-        cv2.putText(annotated_frame, f'Classes: {detected_classes}', (30, 550),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Classes: {detected_classes}', (10, 220),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
     
-    cv2.putText(annotated_frame, f'Target Found: {target_found}', (30, 650),
-                cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 255), 5, cv2.LINE_AA)
+    cv2.putText(annotated_frame, f'Target Found: {target_found}', (10, 260),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
 
     if target_found:
         error_x_pixels = best_x - center_x
@@ -211,20 +211,20 @@ while True:
         ser.write(f"pan={int(current_pan)}\n".encode())
         ser.write(f"tilt={int(current_tilt)}\n".encode())
 
-        # Draw tracking dot (scaled for high resolution)
-        cv2.circle(annotated_frame, (best_x, best_y), 30, (0, 0, 255), -1)
+        # Draw tracking dot
+        cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)
 
-        cv2.putText(annotated_frame, f'Pan: {current_pan:.1f}', (30, 150),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 255, 0), 5, cv2.LINE_AA)
-        cv2.putText(annotated_frame, f'Tilt: {current_tilt:.1f}', (30, 250),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 255, 0), 5, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Pan: {current_pan:.1f}', (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Tilt: {current_tilt:.1f}', (10, 100),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
 
-    # FPS (only update when processing, scaled for high resolution)
+    # FPS (only update when processing)
     if results is not None and is_processing:
         inference_time = results[0].speed['inference']
         fps = 1000 / inference_time
-        cv2.putText(annotated_frame, f'FPS: {fps:.1f}', (30, 80),
-                    cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 255), 6, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'FPS: {fps:.1f}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     cv2.imshow("Camera", annotated_frame)
     if cv2.waitKey(1) == ord("q"):
