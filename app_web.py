@@ -145,7 +145,7 @@ def process_frame():
                     box_y1 = int(y1 * scale_y)
                     box_x2 = int(x2 * scale_x)
                     box_y2 = int(y2 * scale_y)
-                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
+                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 8)
         
         if is_processing:
             if target_found:
@@ -200,13 +200,13 @@ def process_frame():
             ser.write(f"pan={int(current_pan)}\n".encode())
             ser.write(f"tilt={int(current_tilt)}\n".encode())
         
-        cv2.circle(annotated_frame, (best_x, best_y), 10, (0, 0, 255), -1)
+        cv2.circle(annotated_frame, (best_x, best_y), 30, (0, 0, 255), -1)
     
-    # Add status indicator
+    # Add status indicator (scaled for high resolution)
     status_color = (0, 255, 0) if target_found else (0, 0, 255)
     status_text = "TARGET DETECTED" if target_found else "SEARCHING..."
-    cv2.putText(annotated_frame, status_text, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2, cv2.LINE_AA)
+    cv2.putText(annotated_frame, status_text, (30, 100),
+                cv2.FONT_HERSHEY_SIMPLEX, 3, status_color, 6, cv2.LINE_AA)
     
     if results is not None and is_processing:
         inference_time = results[0].speed['inference']
