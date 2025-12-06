@@ -26,6 +26,12 @@ frame_height = 2592
 center_x = frame_width // 2
 center_y = frame_height // 2
 
+# Detection resolution (downscaled for faster YOLO processing)
+detect_width = 640
+detect_height = 360
+scale_x = frame_width / detect_width
+scale_y = frame_height / detect_height
+
 # -----------------------------
 # Servo Parameters
 # -----------------------------
@@ -68,24 +74,25 @@ last_target_found = False
 last_best_x, last_best_y = 0, 0
 
 while True:
-    frame = picam2.capture_array()
+    # Capture full resolution frame
+    frame_full = picam2.capture_array()
     
     # Check if this frame should be processed
     is_processing = frame_count % SKIP_FRAMES == 0
     
     # Process YOLO only every SKIP_FRAMES frames
     if is_processing:
-        results = model(frame)
+        # Downscale for faster YOLO detection
+        frame_small = cv2.resize(frame_full, (detect_width, detect_height))
+        results = model(frame_small)
         last_results = results
     else:
         results = last_results
     
     frame_count += 1
     
-    if results is not None:
-        annotated_frame = results[0].plot()
-    else:
-        annotated_frame = frame.copy()
+    # Use full resolution frame for display
+    annotated_frame = frame_full.copy()
 
     target_found = False
     closest_distance = float('inf')
@@ -95,14 +102,21 @@ while True:
         for box, cls in zip(results[0].boxes.xyxy, results[0].boxes.cls):
             if int(cls) == TARGET_CLASS:
                 x1, y1, x2, y2 = box
-                obj_x = int((x1 + x2) / 2)
-                obj_y = int((y1 + y2) / 2)
+                # Scale coordinates back to full resolution
+                obj_x = int((x1 + x2) / 2 * scale_x)
+                obj_y = int((y1 + y2) / 2 * scale_y)
 
                 distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
                 if distance < closest_distance:
                     closest_distance = distance
                     best_x, best_y = obj_x, obj_y
                     target_found = True
+                    # Draw bounding box on full resolution frame
+                    box_x1 = int(x1 * scale_x)
+                    box_y1 = int(y1 * scale_y)
+                    box_x2 = int(x2 * scale_x)
+                    box_y2 = int(y2 * scale_y)
+                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
         
         # Update last known position only when processing new frame
         if is_processing:

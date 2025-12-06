@@ -21,6 +21,11 @@ try:
     ser = serial.Serial('/dev/serial0', 115200, timeout=1)
     time.sleep(2)
     uart_enabled = True
+    # set servo to 90 90
+    ser.write("pan=90\n".encode())
+    ser.write("tilt=90\n".encode())
+    time.sleep(1)
+    print(f"camera initialized")
 except:
     uart_enabled = False
     print("Warning: UART not available")
@@ -39,6 +44,12 @@ frame_width = 4608
 frame_height = 2592
 center_x = frame_width // 2
 center_y = frame_height // 2
+
+# Detection resolution (downscaled for faster YOLO processing)
+detect_width = 640
+detect_height = 360
+scale_x = frame_width / detect_width
+scale_y = frame_height / detect_height
 
 # Servo Parameters
 PAN_MIN, PAN_MAX = 0, 180
@@ -61,7 +72,7 @@ pan_last_error = 0.0
 tilt_last_error = 0.0
 
 # Load YOLO
-model = YOLO("yolov8n_ncnn_model")
+model = YOLO("yolo11n.pt")
 TARGET_CLASS = 67
 
 # COCO class names
@@ -96,21 +107,22 @@ def process_frame():
     global frame_count, last_results, last_target_found, last_best_x, last_best_y
     global pan_integral, tilt_integral, pan_last_error, tilt_last_error
     
-    frame = picam2.capture_array()
+    # Capture full resolution frame
+    frame_full = picam2.capture_array()
     is_processing = frame_count % SKIP_FRAMES == 0
     
     if is_processing:
-        results = model(frame)
+        # Downscale for faster YOLO detection
+        frame_small = cv2.resize(frame_full, (detect_width, detect_height))
+        results = model(frame_small)
         last_results = results
     else:
         results = last_results
     
     frame_count += 1
     
-    if results is not None:
-        annotated_frame = results[0].plot()
-    else:
-        annotated_frame = frame.copy()
+    # Use full resolution frame for display (don't use results[0].plot() as it's wrong size)
+    annotated_frame = frame_full.copy()
     
     target_found = False
     closest_distance = float('inf')
@@ -119,14 +131,21 @@ def process_frame():
         for box, cls in zip(results[0].boxes.xyxy, results[0].boxes.cls):
             if int(cls) == TARGET_CLASS:
                 x1, y1, x2, y2 = box
-                obj_x = int((x1 + x2) / 2)
-                obj_y = int((y1 + y2) / 2)
+                # Scale coordinates back to full resolution
+                obj_x = int((x1 + x2) / 2 * scale_x)
+                obj_y = int((y1 + y2) / 2 * scale_y)
                 
                 distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
                 if distance < closest_distance:
                     closest_distance = distance
                     best_x, best_y = obj_x, obj_y
                     target_found = True
+                    # Draw bounding box on full resolution frame
+                    box_x1 = int(x1 * scale_x)
+                    box_y1 = int(y1 * scale_y)
+                    box_x2 = int(x2 * scale_x)
+                    box_y2 = int(y2 * scale_y)
+                    cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
         
         if is_processing:
             if target_found:
