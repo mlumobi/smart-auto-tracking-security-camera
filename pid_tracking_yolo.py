@@ -51,8 +51,8 @@ SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 # -----------------------------
 # ZONE SETTINGS
 # -----------------------------
-INNER_DEAD_ZONE = 25     # Completely stable zone (camera does not move)
-OUTER_TRIGGER_ZONE = 60  # Only move when phone exceeds this distance
+INNER_DEAD_ZONE = 50     # Doubled from 25 - Completely stable zone (camera does not move)
+OUTER_TRIGGER_ZONE = 120  # Doubled from 60 - Only move when phone exceeds this distance
 
 # -----------------------------
 # PID Control Parameters (pixel-based control)
@@ -111,7 +111,14 @@ while True:
                 confidence = float(conf)
                 # Scale coordinates back to full resolution
                 obj_x = int((x1 + x2) / 2 * scale_x)
-                obj_y = int((y1 + y2) / 2 * scale_y)
+                
+                # For person class, target the top of the box (head area)
+                if int(cls) == 0:  # person class
+                    # Use top 20% of the box (head/upper body area)
+                    obj_y = int((y1 + (y2 - y1) * 0.2) * scale_y)
+                else:
+                    # For other objects, use center
+                    obj_y = int((y1 + y2) / 2 * scale_y)
 
                 distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
                 if distance < closest_distance:
@@ -227,6 +234,10 @@ while True:
 
         # Draw tracking dot
         cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)
+        # Add tracking mode indicator
+        track_mode = "HEAD" if TARGET_CLASS == 0 else "CENTER"
+        cv2.putText(annotated_frame, track_mode, (best_x - 30, best_y - 20),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
 
         cv2.putText(annotated_frame, f'Pan: {current_pan:.1f}', (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)

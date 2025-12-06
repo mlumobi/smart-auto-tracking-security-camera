@@ -58,15 +58,15 @@ PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
 MAX_STEP = 15.0 # max degrees per frame
-SMOOTHING = 0.6
+SMOOTHING = 0
 
 # Zone Settings
-INNER_DEAD_ZONE = 25
-OUTER_TRIGGER_ZONE = 60
+INNER_DEAD_ZONE = 50  # Doubled from 25
+OUTER_TRIGGER_ZONE = 120  # Doubled from 60
 
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot
-Ki = 0.001  # Small integral gain to eliminate steady-state error
+Ki = 0.005  # Small integral gain to eliminate steady-state error
 Kd = 0.03   # Damping to prevent overshoot
 MAX_INTEGRAL = 500  # Anti-windup: clamp integral accumulation
 pan_integral = 0.0
@@ -140,7 +140,14 @@ def process_frame():
                 confidence = float(conf)
                 # Scale coordinates back to full resolution
                 obj_x = int((x1 + x2) / 2 * scale_x)
-                obj_y = int((y1 + y2) / 2 * scale_y)
+                
+                # For person class, target the top of the box (head area)
+                if int(cls) == 0:  # person class
+                    # Use top 20% of the box (head/upper body area)
+                    obj_y = int((y1 + (y2 - y1) * 0.2) * scale_y)
+                else:
+                    # For other objects, use center
+                    obj_y = int((y1 + y2) / 2 * scale_y)
                 
                 distance = ((obj_x - center_x)**2 + (obj_y - center_y)**2)**0.5
                 if distance < closest_distance:
@@ -217,6 +224,10 @@ def process_frame():
     
     if target_found:
         cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)
+        # Add tracking mode indicator
+        track_mode = "HEAD" if TARGET_CLASS == 0 else "CENTER"
+        cv2.putText(annotated_frame, track_mode, (best_x - 30, best_y - 20),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
     
     # Add status indicator
     status_color = (0, 255, 0) if target_found else (0, 0, 255)
