@@ -102,6 +102,8 @@ while True:
 
     target_found = False
     closest_distance = float('inf')
+    best_box_width = 0
+    best_box_height = 0
 
     # Find closest phone to center
     if results is not None and results[0].boxes is not None and len(results[0].boxes) > 0:
@@ -130,6 +132,10 @@ while True:
                     box_y1 = int(y1 * scale_y)
                     box_x2 = int(x2 * scale_x)
                     box_y2 = int(y2 * scale_y)
+                    # Save box size for dynamic dead zone
+                    best_box_width = box_x2 - box_x1
+                    best_box_height = box_y2 - box_y1
+                    
                     cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
                     
                     # Draw confidence on top of the box
@@ -174,15 +180,23 @@ while True:
         error_y_pixels = best_y - center_y
         error_distance = int(((error_x_pixels)**2 + (error_y_pixels)**2)**0.5)
         
+        # Dynamic dead zone based on object size
+        # Larger objects (closer to camera) need smaller dead zones to prevent overshoot
+        object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
+        size_factor = max(0.3, 1.0 - object_size_ratio * 1.5)
+        
+        dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
+        dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
+        
         # Show error and tracking status
         cv2.putText(annotated_frame, f'Error: X={error_x_pixels} Y={error_y_pixels} Dist={error_distance}', 
                    (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
         
-        # Determine tracking status
-        if abs(error_x_pixels) < INNER_DEAD_ZONE and abs(error_y_pixels) < INNER_DEAD_ZONE:
+        # Determine tracking status using dynamic zones
+        if abs(error_x_pixels) < dynamic_inner_dead and abs(error_y_pixels) < dynamic_inner_dead:
             status = "IN DEAD ZONE"
             status_color = (0, 255, 0)
-        elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE or abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_x_pixels) >= dynamic_outer_trigger or abs(error_y_pixels) >= dynamic_outer_trigger:
             status = "TRACKING"
             status_color = (0, 255, 255)
         else:
@@ -191,20 +205,24 @@ while True:
         
         cv2.putText(annotated_frame, f'Status: {status}', 
                    (10, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Size: {best_box_width}x{best_box_height} ({object_size_ratio*100:.1f}%)', 
+                   (10, 380), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Dynamic Zones: Inner={dynamic_inner_dead} Outer={dynamic_outer_trigger}', 
+                   (10, 410), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
 
         pan_step = 0.0
         tilt_step = 0.0
 
         # -----------------------------
-        # PAN (X-axis)
+        # PAN (X-axis) with dynamic dead zones
         # -----------------------------
-        if abs(error_x_pixels) < INNER_DEAD_ZONE:
+        if abs(error_x_pixels) < dynamic_inner_dead:
             # Full stability zone → do nothing
             pan_step = 0.0
             pan_integral = 0.0
             pan_last_error = 0.0
 
-        elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_x_pixels) >= dynamic_outer_trigger:
             # PID correction only outside trigger zone
             pan_integral += error_x_pixels
             pan_integral = max(min(pan_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
@@ -218,14 +236,14 @@ while True:
             pan_last_error = error_x_pixels
 
         # -----------------------------
-        # TILT (Y-axis)
+        # TILT (Y-axis) with dynamic dead zones
         # -----------------------------
-        if abs(error_y_pixels) < INNER_DEAD_ZONE:
+        if abs(error_y_pixels) < dynamic_inner_dead:
             tilt_step = 0.0
             tilt_integral = 0.0
             tilt_last_error = 0.0
 
-        elif abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_y_pixels) >= dynamic_outer_trigger:
             tilt_integral += error_y_pixels
             tilt_integral = max(min(tilt_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
             tilt_derivative = error_y_pixels - tilt_last_error

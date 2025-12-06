@@ -66,8 +66,8 @@ OUTER_TRIGGER_ZONE = 150  # Trigger zone - movement starts here (increased from 
 
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot
-Ki = 0.005  # Small integral gain to eliminate steady-state error
-Kd = 0.03   # Damping to prevent overshoot
+Ki = 0.00 # no integral gain
+Kd = 0.05   # Damping to prevent overshoot
 MAX_INTEGRAL = 500  # Anti-windup: clamp integral accumulation
 pan_integral = 0.0
 tilt_integral = 0.0
@@ -132,6 +132,8 @@ def process_frame():
     
     target_found = False
     closest_distance = float('inf')
+    best_box_width = 0
+    best_box_height = 0
     
     if results is not None and results[0].boxes is not None and len(results[0].boxes) > 0:
         for box, cls, conf in zip(results[0].boxes.xyxy, results[0].boxes.cls, results[0].boxes.conf):
@@ -159,6 +161,10 @@ def process_frame():
                     box_y1 = int(y1 * scale_y)
                     box_x2 = int(x2 * scale_x)
                     box_y2 = int(y2 * scale_y)
+                    # Save box size for dynamic dead zone
+                    best_box_width = box_x2 - box_x1
+                    best_box_height = box_y2 - box_y1
+                    
                     cv2.rectangle(annotated_frame, (box_x1, box_y1), (box_x2, box_y2), (0, 255, 0), 3)
                     
                     # Draw confidence on top of the box
@@ -185,14 +191,26 @@ def process_frame():
         error_x_pixels = best_x - center_x
         error_y_pixels = best_y - center_y
         
+        # Dynamic dead zone based on object size
+        # Larger objects (closer to camera) need smaller dead zones to prevent overshoot
+        # Formula: scale down dead zone when object is large
+        object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
+        
+        # Adjust dead zones: smaller for large objects, normal for small objects
+        # When object fills 50% of screen, dead zone is halved
+        size_factor = max(0.3, 1.0 - object_size_ratio * 1.5)
+        
+        dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
+        dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
+        
         pan_step = 0.0
         tilt_step = 0.0
         
-        if abs(error_x_pixels) < INNER_DEAD_ZONE:
+        if abs(error_x_pixels) < dynamic_inner_dead:
             pan_step = 0.0
             pan_integral = 0.0
             pan_last_error = 0.0
-        elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_x_pixels) >= dynamic_outer_trigger:
             pan_integral += error_x_pixels
             pan_integral = max(min(pan_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
             pan_derivative = error_x_pixels - pan_last_error
@@ -200,11 +218,11 @@ def process_frame():
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
             pan_last_error = error_x_pixels
         
-        if abs(error_y_pixels) < INNER_DEAD_ZONE:
+        if abs(error_y_pixels) < dynamic_inner_dead:
             tilt_step = 0.0
             tilt_integral = 0.0
             tilt_last_error = 0.0
-        elif abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_y_pixels) >= dynamic_outer_trigger:
             tilt_integral += error_y_pixels
             tilt_integral = max(min(tilt_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
             tilt_derivative = error_y_pixels - tilt_last_error
@@ -248,14 +266,20 @@ def process_frame():
         error_y = best_y - center_y
         error_distance = int(((error_x)**2 + (error_y)**2)**0.5)
         
-        # Determine tracking status
+        # Calculate dynamic dead zones for display
+        object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
+        size_factor = max(0.3, 1.0 - object_size_ratio * 1.5)
+        dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
+        dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
+        
+        # Determine tracking status using dynamic zones
         if manual_mode:
             status = "MANUAL MODE"
             debug_color = (255, 255, 0)
-        elif abs(error_x) < INNER_DEAD_ZONE and abs(error_y) < INNER_DEAD_ZONE:
+        elif abs(error_x) < dynamic_inner_dead and abs(error_y) < dynamic_inner_dead:
             status = "IN DEAD ZONE"
             debug_color = (0, 255, 0)
-        elif abs(error_x) >= OUTER_TRIGGER_ZONE or abs(error_y) >= OUTER_TRIGGER_ZONE:
+        elif abs(error_x) >= dynamic_outer_trigger or abs(error_y) >= dynamic_outer_trigger:
             status = "TRACKING"
             debug_color = (0, 255, 255)
         else:
@@ -266,6 +290,10 @@ def process_frame():
                    (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(annotated_frame, f"Status: {status}", 
                    (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, debug_color, 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f"Size: {best_box_width}x{best_box_height} ({object_size_ratio*100:.1f}%)", 
+                   (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f"Dynamic Zones: Inner={dynamic_inner_dead} Outer={dynamic_outer_trigger}", 
+                   (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
     
     # Draw dead zones (inner and outer trigger zones)
     # Inner dead zone (green rectangle) - no movement inside this zone
