@@ -180,23 +180,33 @@ while True:
         error_y_pixels = best_y - center_y
         error_distance = int(((error_x_pixels)**2 + (error_y_pixels)**2)**0.5)
         
+        # Track zone: instead of a single point, use a range (20% of object size)
+        TRACK_ZONE_RATIO = 0.20
+        track_zone_x = int(best_box_width * TRACK_ZONE_RATIO / 2)
+        track_zone_y = int(best_box_height * TRACK_ZONE_RATIO / 2)
+        
+        # Effective error: reduce error by track zone size
+        effective_error_x = max(0, abs(error_x_pixels) - track_zone_x) * (1 if error_x_pixels >= 0 else -1)
+        effective_error_y = max(0, abs(error_y_pixels) - track_zone_y) * (1 if error_y_pixels >= 0 else -1)
+        
         # Dynamic dead zone based on object size
-        # Larger objects (closer to camera) need smaller dead zones to prevent overshoot
         object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
-        size_factor = max(0.3, 1.0 - object_size_ratio * 1.5)
+        size_factor = max(0.3, 1.0 - object_size_ratio * 2.0)
         
         dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
         dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
         
         # Show error and tracking status
-        cv2.putText(annotated_frame, f'Error: X={error_x_pixels} Y={error_y_pixels} Dist={error_distance}', 
-                   (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Raw Error: X={error_x_pixels} Y={error_y_pixels}', 
+                   (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Effective: X={int(effective_error_x)} Y={int(effective_error_y)} (zone={track_zone_x},{track_zone_y})', 
+                   (10, 330), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 200, 0), 2, cv2.LINE_AA)
         
-        # Determine tracking status using dynamic zones
-        if abs(error_x_pixels) < dynamic_inner_dead and abs(error_y_pixels) < dynamic_inner_dead:
+        # Determine tracking status using effective error
+        if abs(effective_error_x) < dynamic_inner_dead and abs(effective_error_y) < dynamic_inner_dead:
             status = "IN DEAD ZONE"
             status_color = (0, 255, 0)
-        elif abs(error_x_pixels) >= dynamic_outer_trigger or abs(error_y_pixels) >= dynamic_outer_trigger:
+        elif abs(effective_error_x) >= dynamic_outer_trigger or abs(effective_error_y) >= dynamic_outer_trigger:
             status = "TRACKING"
             status_color = (0, 255, 255)
         else:
@@ -204,56 +214,62 @@ while True:
             status_color = (255, 165, 0)
         
         cv2.putText(annotated_frame, f'Status: {status}', 
-                   (10, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
+                   (10, 360), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
         cv2.putText(annotated_frame, f'Size: {best_box_width}x{best_box_height} ({object_size_ratio*100:.1f}%)', 
-                   (10, 380), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
-        cv2.putText(annotated_frame, f'Dynamic Zones: Inner={dynamic_inner_dead} Outer={dynamic_outer_trigger}', 
-                   (10, 410), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+                   (10, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f'Dead Zones: Inner={dynamic_inner_dead} Outer={dynamic_outer_trigger}', 
+                   (10, 430), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        
+        # Draw track zone rectangle around tracking point
+        cv2.rectangle(annotated_frame, 
+                     (best_x - track_zone_x, best_y - track_zone_y),
+                     (best_x + track_zone_x, best_y + track_zone_y),
+                     (255, 255, 0), 2)  # Cyan rectangle for track zone
 
         pan_step = 0.0
         tilt_step = 0.0
 
         # -----------------------------
-        # PAN (X-axis) with dynamic dead zones
+        # PAN (X-axis) with track zone and dynamic dead zones
         # -----------------------------
-        if abs(error_x_pixels) < dynamic_inner_dead:
+        if abs(effective_error_x) < dynamic_inner_dead:
             # Full stability zone → do nothing
             pan_step = 0.0
             pan_integral = 0.0
             pan_last_error = 0.0
 
-        elif abs(error_x_pixels) >= dynamic_outer_trigger:
+        elif abs(effective_error_x) >= dynamic_outer_trigger:
             # PID correction only outside trigger zone
-            pan_integral += error_x_pixels
+            pan_integral += effective_error_x
             pan_integral = max(min(pan_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
-            pan_derivative = error_x_pixels - pan_last_error
+            pan_derivative = effective_error_x - pan_last_error
 
-            pan_step = -(Kp * error_x_pixels +
+            pan_step = -(Kp * effective_error_x +
                          Ki * pan_integral +
                          Kd * pan_derivative)
 
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
-            pan_last_error = error_x_pixels
+            pan_last_error = effective_error_x
 
         # -----------------------------
-        # TILT (Y-axis) with dynamic dead zones
+        # TILT (Y-axis) with track zone and dynamic dead zones
         # -----------------------------
-        if abs(error_y_pixels) < dynamic_inner_dead:
+        if abs(effective_error_y) < dynamic_inner_dead:
             tilt_step = 0.0
             tilt_integral = 0.0
             tilt_last_error = 0.0
 
-        elif abs(error_y_pixels) >= dynamic_outer_trigger:
-            tilt_integral += error_y_pixels
+        elif abs(effective_error_y) >= dynamic_outer_trigger:
+            tilt_integral += effective_error_y
             tilt_integral = max(min(tilt_integral, MAX_INTEGRAL), -MAX_INTEGRAL)  # Anti-windup
-            tilt_derivative = error_y_pixels - tilt_last_error
+            tilt_derivative = effective_error_y - tilt_last_error
 
-            tilt_step = (Kp * error_y_pixels +
+            tilt_step = (Kp * effective_error_y +
                          Ki * tilt_integral +
                          Kd * tilt_derivative)
 
             tilt_step = max(min(tilt_step, MAX_STEP), -MAX_STEP)
-            tilt_last_error = error_y_pixels
+            tilt_last_error = effective_error_y
 
         # -----------------------------
         # Apply smoothing filter
@@ -291,23 +307,34 @@ while True:
         cv2.putText(annotated_frame, f'FPS: {fps:.1f}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
     
-    # Draw dead zones (inner and outer trigger zones)
+    # Draw dead zones (dynamic if target found, static otherwise)
+    if target_found:
+        # Use dynamic zones based on object size
+        object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
+        size_factor = max(0.1, 1.0 - object_size_ratio * 3.0)
+        display_inner = int(INNER_DEAD_ZONE * size_factor)
+        display_outer = int(OUTER_TRIGGER_ZONE * size_factor)
+    else:
+        # Use static zones when no target
+        display_inner = INNER_DEAD_ZONE
+        display_outer = OUTER_TRIGGER_ZONE
+    
     # Inner dead zone (green rectangle) - no movement inside this zone
-    inner_x1 = center_x - INNER_DEAD_ZONE
-    inner_y1 = center_y - INNER_DEAD_ZONE
-    inner_x2 = center_x + INNER_DEAD_ZONE
-    inner_y2 = center_y + INNER_DEAD_ZONE
+    inner_x1 = center_x - display_inner
+    inner_y1 = center_y - display_inner
+    inner_x2 = center_x + display_inner
+    inner_y2 = center_y + display_inner
     cv2.rectangle(annotated_frame, (inner_x1, inner_y1), (inner_x2, inner_y2), (0, 255, 0), 2)
-    cv2.putText(annotated_frame, "DEAD ZONE", (inner_x1, inner_y1 - 5),
+    cv2.putText(annotated_frame, f"DEAD {display_inner}px", (inner_x1, inner_y1 - 5),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
     
     # Outer trigger zone (yellow rectangle) - movement triggers outside this zone
-    outer_x1 = center_x - OUTER_TRIGGER_ZONE
-    outer_y1 = center_y - OUTER_TRIGGER_ZONE
-    outer_x2 = center_x + OUTER_TRIGGER_ZONE
-    outer_y2 = center_y + OUTER_TRIGGER_ZONE
+    outer_x1 = center_x - display_outer
+    outer_y1 = center_y - display_outer
+    outer_x2 = center_x + display_outer
+    outer_y2 = center_y + display_outer
     cv2.rectangle(annotated_frame, (outer_x1, outer_y1), (outer_x2, outer_y2), (0, 255, 255), 2)
-    cv2.putText(annotated_frame, "TRIGGER ZONE", (outer_x1, outer_y1 - 5),
+    cv2.putText(annotated_frame, f"TRIGGER {display_outer}px", (outer_x1, outer_y1 - 5),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
     
     # Draw center crosshair
