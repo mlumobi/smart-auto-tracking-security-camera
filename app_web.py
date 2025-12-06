@@ -44,8 +44,6 @@ center_y = frame_height // 2
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-CAMERA_H_FOV = 120
-CAMERA_V_FOV = 90
 MAX_STEP = 5.0
 SMOOTHING = 0.6
 
@@ -53,10 +51,10 @@ SMOOTHING = 0.6
 INNER_DEAD_ZONE = 25
 OUTER_TRIGGER_ZONE = 60
 
-# PID Parameters
-Kp = 0.5
-Ki = 0.0
-Kd = 0.1
+# PID Parameters (pixel-based control)
+Kp = 0.005  # Start conservative for 4608px width
+Ki = 0.0    # Keep disabled initially
+Kd = 0.001  # Small damping
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
@@ -158,7 +156,7 @@ def process_frame():
         elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE:
             pan_integral += error_x_pixels
             pan_derivative = error_x_pixels - pan_last_error
-            pan_step = -(Kp * error_x_pixels + Ki * pan_integral + Kd * pan_derivative) / (frame_width / 2) * (CAMERA_H_FOV / 2)
+            pan_step = -(Kp * error_x_pixels + Ki * pan_integral + Kd * pan_derivative)
             pan_step = max(min(pan_step, MAX_STEP), -MAX_STEP)
             pan_last_error = error_x_pixels
         
@@ -169,7 +167,7 @@ def process_frame():
         elif abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
             tilt_integral += error_y_pixels
             tilt_derivative = error_y_pixels - tilt_last_error
-            tilt_step = (Kp * error_y_pixels + Ki * tilt_integral + Kd * tilt_derivative) / (frame_height / 2) * (CAMERA_V_FOV / 2)
+            tilt_step = (Kp * error_y_pixels + Ki * tilt_integral + Kd * tilt_derivative)
             tilt_step = max(min(tilt_step, MAX_STEP), -MAX_STEP)
             tilt_last_error = error_y_pixels
         
