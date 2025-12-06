@@ -148,12 +148,91 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        
+        /* Manual Control Styles */
+        .mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toggle-btn {
+            background: #2a2a2a;
+            color: #888;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .toggle-btn.active {
+            background: #00ff00;
+            color: #000;
+            border-color: #00ff00;
+        }
+        
+        .toggle-btn:hover {
+            border-color: #00ff00;
+        }
+        
+        .manual-controls {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background: #1a1a1a;
+            gap: 5px;
+        }
+        
+        .manual-controls.visible {
+            display: flex;
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 40px);
+            grid-template-rows: repeat(3, 40px);
+            gap: 5px;
+        }
+        
+        .control-btn {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 5px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-btn:hover {
+            background: #00ff00;
+            color: #000;
+            border-color: #00ff00;
+        }
+        
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .control-btn.center {
+            background: #444;
+            font-size: 0.7em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>Smart Tracking Camera</h1>
+            <div class="mode-toggle">
+                <button id="mode-btn" class="toggle-btn">MANUAL</button>
+            </div>
             <div class="target-selector">
                 <label for="class-select">Target:</label>
                 <select id="class-select">
@@ -164,6 +243,20 @@
         
         <div class="video-container">
             <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Video Stream">
+        </div>
+        
+        <div class="manual-controls" id="manual-controls">
+            <div class="control-grid">
+                <div></div>
+                <button class="control-btn" data-dir="up">▲</button>
+                <div></div>
+                <button class="control-btn" data-dir="left">◀</button>
+                <button class="control-btn center" data-dir="center">●</button>
+                <button class="control-btn" data-dir="right">▶</button>
+                <div></div>
+                <button class="control-btn" data-dir="down">▼</button>
+                <div></div>
+            </div>
         </div>
         
         <div class="status-panel">
@@ -196,6 +289,45 @@
 
     <script>
         let currentTargetClass = null;
+        let manualMode = false;
+        
+        // Toggle manual mode
+        document.getElementById('mode-btn').addEventListener('click', function() {
+            fetch('/toggle_manual', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    manualMode = data.manual_mode;
+                    updateModeUI();
+                })
+                .catch(error => console.error('Error toggling mode:', error));
+        });
+        
+        function updateModeUI() {
+            const btn = document.getElementById('mode-btn');
+            const controls = document.getElementById('manual-controls');
+            if (manualMode) {
+                btn.classList.add('active');
+                btn.textContent = 'MANUAL ON';
+                controls.classList.add('visible');
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = 'MANUAL';
+                controls.classList.remove('visible');
+            }
+        }
+        
+        // Manual control buttons
+        document.querySelectorAll('.control-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const direction = this.dataset.dir;
+                fetch('/manual_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ direction: direction })
+                })
+                .catch(error => console.error('Error sending control:', error));
+            });
+        });
         
         // Load COCO classes into dropdown
         function loadClasses() {
@@ -263,6 +395,12 @@
                     if (data.target_class !== currentTargetClass) {
                         currentTargetClass = data.target_class;
                         document.getElementById('class-select').value = currentTargetClass;
+                    }
+                    
+                    // Sync manual mode state
+                    if (data.manual_mode !== manualMode) {
+                        manualMode = data.manual_mode;
+                        updateModeUI();
                     }
                 })
                 .catch(error => console.error('Error fetching status:', error));

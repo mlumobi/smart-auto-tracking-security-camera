@@ -14,6 +14,7 @@ target_detected = False
 current_pan = 90.0
 current_tilt = 50.0
 fps_value = 0.0
+manual_mode = False  # Toggle for manual control
 lock = threading.Lock()
 
 # UART Setup
@@ -97,7 +98,7 @@ COCO_CLASSES = {
 
 # Frame skipping (increased for full resolution performance)
 frame_count = 0
-SKIP_FRAMES = 3
+SKIP_FRAMES = 1
 last_results = None
 last_target_found = False
 last_best_x, last_best_y = 0, 0
@@ -161,7 +162,8 @@ def process_frame():
     with lock:
         target_detected = target_found
     
-    if target_found:
+    # Only track if not in manual mode
+    if target_found and not manual_mode:
         error_x_pixels = best_x - center_x
         error_y_pixels = best_y - center_y
         
@@ -199,7 +201,8 @@ def process_frame():
         if uart_enabled:
             ser.write(f"pan={int(current_pan)}\n".encode())
             ser.write(f"tilt={int(current_tilt)}\n".encode())
-        
+    
+    if target_found:
         cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)
     
     # Add status indicator
@@ -241,7 +244,8 @@ def status():
             'tilt': round(current_tilt, 1),
             'fps': round(fps_value, 1),
             'target_class': TARGET_CLASS,
-            'target_name': COCO_CLASSES.get(TARGET_CLASS, "Unknown")
+            'target_name': COCO_CLASSES.get(TARGET_CLASS, "Unknown"),
+            'manual_mode': manual_mode
         })
 
 @app.route('/classes')
@@ -255,6 +259,43 @@ def set_target(class_id):
         TARGET_CLASS = class_id
         return jsonify({'success': True, 'class_id': class_id, 'class_name': COCO_CLASSES[class_id]})
     return jsonify({'success': False, 'error': 'Invalid class ID'}), 400
+
+@app.route('/toggle_manual', methods=['POST'])
+def toggle_manual():
+    global manual_mode
+    manual_mode = not manual_mode
+    return jsonify({'success': True, 'manual_mode': manual_mode})
+
+@app.route('/manual_control', methods=['POST'])
+def manual_control():
+    global current_pan, current_tilt
+    from flask import request
+    data = request.get_json()
+    
+    if not manual_mode:
+        return jsonify({'success': False, 'error': 'Not in manual mode'}), 400
+    
+    direction = data.get('direction')
+    step = 5  # degrees per button press
+    
+    with lock:
+        if direction == 'left':
+            current_pan = min(current_pan + step, PAN_MAX)
+        elif direction == 'right':
+            current_pan = max(current_pan - step, PAN_MIN)
+        elif direction == 'up':
+            current_tilt = max(current_tilt - step, TILT_MIN)
+        elif direction == 'down':
+            current_tilt = min(current_tilt + step, TILT_MAX)
+        elif direction == 'center':
+            current_pan = 90.0
+            current_tilt = 50.0
+        
+        if uart_enabled:
+            ser.write(f"pan={int(current_pan)}\n".encode())
+            ser.write(f"tilt={int(current_tilt)}\n".encode())
+    
+    return jsonify({'success': True, 'pan': current_pan, 'tilt': current_tilt})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True)
