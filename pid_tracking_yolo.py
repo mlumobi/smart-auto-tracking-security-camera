@@ -190,8 +190,9 @@ while True:
         effective_error_y = max(0, abs(error_y_pixels) - track_zone_y) * (1 if error_y_pixels >= 0 else -1)
         
         # Dynamic dead zone based on object size
+        # LARGER objects (closer) = LARGER dead zone (more tolerance)
         object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
-        size_factor = max(0.3, 1.0 - object_size_ratio * 2.0)
+        size_factor = 1.0 + object_size_ratio * 3.0
         
         dynamic_inner_dead = int(INNER_DEAD_ZONE * size_factor)
         dynamic_outer_trigger = int(OUTER_TRIGGER_ZONE * size_factor)
@@ -309,9 +310,9 @@ while True:
     
     # Draw dead zones (dynamic if target found, static otherwise)
     if target_found:
-        # Use dynamic zones based on object size
+        # Use dynamic zones based on object size (larger object = larger dead zone)
         object_size_ratio = (best_box_width * best_box_height) / (frame_width * frame_height)
-        size_factor = max(0.1, 1.0 - object_size_ratio * 3.0)
+        size_factor = 1.0 + object_size_ratio * 3.0
         display_inner = int(INNER_DEAD_ZONE * size_factor)
         display_outer = int(OUTER_TRIGGER_ZONE * size_factor)
     else:
