@@ -52,9 +52,9 @@ OUTER_TRIGGER_ZONE = 60  # Only move when phone exceeds this distance
 # -----------------------------
 # PID Control Parameters (pixel-based control)
 # -----------------------------
-Kp = 0.05   # Aggressive response to pixel errors
+Kp = 0.03   # Reduced to prevent overshoot
 Ki = 0.0    # Keep disabled
-Kd = 0.02   # Strong damping to prevent overshoot
+Kd = 0.02   # Damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
@@ -63,7 +63,7 @@ tilt_last_error = 0.0
 # -----------------------------
 # Load YOLO
 # -----------------------------
-model = YOLO("yolov8n_ncnn_model")
+model = YOLO("yolov8n.pt")
 TARGET_CLASS = 67  # cell phone (COCO dataset)
 
 # Frame skipping for performance (increased for full resolution)

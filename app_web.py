@@ -63,16 +63,16 @@ INNER_DEAD_ZONE = 25
 OUTER_TRIGGER_ZONE = 60
 
 # PID Parameters (pixel-based control)
-Kp = 0.05   # Aggressive response to pixel errors
+Kp = 0.03   # Reduced to prevent overshoot
 Ki = 0.0    # Keep disabled
-Kd = 0.02   # Strong damping to prevent overshoot
+Kd = 0.02   # Damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
 tilt_last_error = 0.0
 
 # Load YOLO
-model = YOLO("yolo11n.pt")
+model = YOLO("yolov8n.pt")
 TARGET_CLASS = 67
 
 # COCO class names
