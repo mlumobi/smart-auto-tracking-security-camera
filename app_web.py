@@ -44,7 +44,7 @@ center_y = frame_height // 2
 PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
-MAX_STEP = 5.0
+MAX_STEP = 15.0
 SMOOTHING = 0.6
 
 # Zone Settings
@@ -52,9 +52,9 @@ INNER_DEAD_ZONE = 25
 OUTER_TRIGGER_ZONE = 60
 
 # PID Parameters (pixel-based control)
-Kp = 0.02   # Faster response to pixel errors
+Kp = 0.05   # Aggressive response to pixel errors
 Ki = 0.0    # Keep disabled
-Kd = 0.005  # Damping to prevent overshoot
+Kd = 0.02   # Strong damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0

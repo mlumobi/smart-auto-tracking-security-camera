@@ -34,7 +34,7 @@ TILT_MIN, TILT_MAX = 0, 180
 current_pan = 90.0
 current_tilt = 90.0
 
-MAX_STEP = 5.0      # max degrees per frame
+MAX_STEP = 15.0     # max degrees per frame
 SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 
 # -----------------------------
@@ -46,9 +46,9 @@ OUTER_TRIGGER_ZONE = 60  # Only move when phone exceeds this distance
 # -----------------------------
 # PID Control Parameters (pixel-based control)
 # -----------------------------
-Kp = 0.02   # Faster response to pixel errors
+Kp = 0.05   # Aggressive response to pixel errors
 Ki = 0.0    # Keep disabled
-Kd = 0.005  # Damping to prevent overshoot
+Kd = 0.02   # Strong damping to prevent overshoot
 pan_integral = 0.0
 tilt_integral = 0.0
 pan_last_error = 0.0
