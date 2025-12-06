@@ -51,8 +51,8 @@ SMOOTHING = 0.6     # smoothing factor (0=no move, 1=full move)
 # -----------------------------
 # ZONE SETTINGS
 # -----------------------------
-INNER_DEAD_ZONE = 50     # Doubled from 25 - Completely stable zone (camera does not move)
-OUTER_TRIGGER_ZONE = 120  # Doubled from 60 - Only move when phone exceeds this distance
+INNER_DEAD_ZONE = 35     # Stable zone - no movement
+OUTER_TRIGGER_ZONE = 80  # Trigger zone - movement starts here
 
 # -----------------------------
 # PID Control Parameters (pixel-based control)
@@ -172,6 +172,25 @@ while True:
     if target_found:
         error_x_pixels = best_x - center_x
         error_y_pixels = best_y - center_y
+        error_distance = int(((error_x_pixels)**2 + (error_y_pixels)**2)**0.5)
+        
+        # Show error and tracking status
+        cv2.putText(annotated_frame, f'Error: X={error_x_pixels} Y={error_y_pixels} Dist={error_distance}', 
+                   (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+        
+        # Determine tracking status
+        if abs(error_x_pixels) < INNER_DEAD_ZONE and abs(error_y_pixels) < INNER_DEAD_ZONE:
+            status = "IN DEAD ZONE"
+            status_color = (0, 255, 0)
+        elif abs(error_x_pixels) >= OUTER_TRIGGER_ZONE or abs(error_y_pixels) >= OUTER_TRIGGER_ZONE:
+            status = "TRACKING"
+            status_color = (0, 255, 255)
+        else:
+            status = "IN NEUTRAL ZONE"
+            status_color = (255, 165, 0)
+        
+        cv2.putText(annotated_frame, f'Status: {status}', 
+                   (10, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2, cv2.LINE_AA)
 
         pan_step = 0.0
         tilt_step = 0.0
@@ -231,6 +250,9 @@ while True:
         # UART Send
         ser.write(f"pan={int(current_pan)}\n".encode())
         ser.write(f"tilt={int(current_tilt)}\n".encode())
+        
+        # Debug output
+        print(f"UART发送: pan={int(current_pan)}, tilt={int(current_tilt)}, step=({pan_step:.2f}, {tilt_step:.2f})")
 
         # Draw tracking dot
         cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)

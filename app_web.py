@@ -58,11 +58,11 @@ PAN_MIN, PAN_MAX = 0, 180
 TILT_MIN, TILT_MAX = 0, 180
 
 MAX_STEP = 15.0 # max degrees per frame
-SMOOTHING = 0
+SMOOTHING = 0.6  # 0=no smoothing (instant jump), 1=full smoothing (slow)
 
 # Zone Settings
-INNER_DEAD_ZONE = 50  # Doubled from 25
-OUTER_TRIGGER_ZONE = 120  # Doubled from 60
+INNER_DEAD_ZONE = 35  # Stable zone - no movement
+OUTER_TRIGGER_ZONE = 80  # Trigger zone - movement starts here
 
 # PID Parameters (pixel-based control)
 Kp = 0.03   # Reduced to prevent overshoot
@@ -218,9 +218,16 @@ def process_frame():
             current_pan = max(min(current_pan, PAN_MAX), PAN_MIN)
             current_tilt = max(min(current_tilt, TILT_MAX), TILT_MIN)
         
+        # Debug: Show PID calculation
+        cv2.putText(annotated_frame, f"Step: pan={pan_step:.2f} tilt={tilt_step:.2f}", 
+                   (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f"Servo: pan={int(current_pan)} tilt={int(current_tilt)}", 
+                   (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+        
         if uart_enabled:
             ser.write(f"pan={int(current_pan)}\n".encode())
             ser.write(f"tilt={int(current_tilt)}\n".encode())
+            print(f"UART发送: pan={int(current_pan)}, tilt={int(current_tilt)}, step=({pan_step:.2f}, {tilt_step:.2f})")
     
     if target_found:
         cv2.circle(annotated_frame, (best_x, best_y), 12, (0, 0, 255), -1)
@@ -234,6 +241,31 @@ def process_frame():
     status_text = "TARGET DETECTED" if target_found else "SEARCHING..."
     cv2.putText(annotated_frame, status_text, (10, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, status_color, 2, cv2.LINE_AA)
+    
+    # Debug info: Show error distance and tracking status
+    if target_found:
+        error_x = best_x - center_x
+        error_y = best_y - center_y
+        error_distance = int(((error_x)**2 + (error_y)**2)**0.5)
+        
+        # Determine tracking status
+        if manual_mode:
+            status = "MANUAL MODE"
+            debug_color = (255, 255, 0)
+        elif abs(error_x) < INNER_DEAD_ZONE and abs(error_y) < INNER_DEAD_ZONE:
+            status = "IN DEAD ZONE"
+            debug_color = (0, 255, 0)
+        elif abs(error_x) >= OUTER_TRIGGER_ZONE or abs(error_y) >= OUTER_TRIGGER_ZONE:
+            status = "TRACKING"
+            debug_color = (0, 255, 255)
+        else:
+            status = "IN NEUTRAL ZONE"
+            debug_color = (255, 165, 0)
+        
+        cv2.putText(annotated_frame, f"Error: X={error_x} Y={error_y} Dist={error_distance}", 
+                   (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(annotated_frame, f"Status: {status}", 
+                   (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, debug_color, 2, cv2.LINE_AA)
     
     # Draw dead zones (inner and outer trigger zones)
     # Inner dead zone (green rectangle) - no movement inside this zone
